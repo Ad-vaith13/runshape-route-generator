@@ -1,0 +1,1077 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RunShape — Route Your Run</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #0a0a0f;
+      --surface: #12121a;
+      --surface2: #1a1a26;
+      --border: #2a2a3d;
+      --accent: #ff4d2e;
+      --accent2: #ff8c42;
+      --green: #3dffa0;
+      --text: #e8e8f0;
+      --muted: #6b6b8a;
+      --card-shadow: 0 4px 32px rgba(0,0,0,0.5);
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* HEADER */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 40px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg);
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+      backdrop-filter: blur(10px);
+    }
+
+    .logo {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 2rem;
+      letter-spacing: 3px;
+      color: var(--text);
+    }
+    .logo span { color: var(--accent); }
+
+    .header-badge {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      border: 1px solid var(--border);
+      padding: 4px 12px;
+      border-radius: 20px;
+    }
+
+    /* LAYOUT */
+    .app-layout {
+      display: grid;
+      grid-template-columns: 380px 1fr;
+      height: calc(100vh - 65px);
+    }
+
+    /* SIDEBAR */
+    .sidebar {
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar::-webkit-scrollbar { width: 4px; }
+    .sidebar::-webkit-scrollbar-track { background: transparent; }
+    .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .sidebar-section {
+      padding: 28px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .section-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--accent);
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .section-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.4rem;
+      letter-spacing: 2px;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+
+    .section-desc {
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-bottom: 18px;
+    }
+
+    /* LOCATION INPUT */
+    .location-input-wrap {
+      position: relative;
+    }
+
+    .location-input {
+      width: 100%;
+      padding: 12px 40px 12px 16px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .location-input:focus { border-color: var(--accent); }
+    .location-input::placeholder { color: var(--muted); }
+
+    .locate-btn {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 1rem;
+      transition: color 0.2s;
+    }
+    .locate-btn:hover { color: var(--accent); }
+
+    /* AUTOCOMPLETE */
+    .autocomplete-list {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0; right: 0;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      z-index: 999;
+      max-height: 200px;
+      overflow-y: auto;
+      display: none;
+    }
+    .autocomplete-list.visible { display: block; }
+    .autocomplete-item {
+      padding: 10px 16px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      color: var(--text);
+      border-bottom: 1px solid var(--border);
+      transition: background 0.15s;
+    }
+    .autocomplete-item:last-child { border-bottom: none; }
+    .autocomplete-item:hover { background: var(--border); }
+
+    /* MODE TABS */
+    .mode-tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .mode-tab {
+      padding: 12px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--muted);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.75rem;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+      text-transform: uppercase;
+    }
+    .mode-tab.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: white;
+    }
+
+    /* PATTERN MODE */
+    .pattern-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+
+    .pattern-card {
+      aspect-ratio: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s;
+      padding: 10px;
+    }
+    .pattern-card:hover { border-color: var(--accent2); transform: translateY(-1px); }
+    .pattern-card.selected {
+      border-color: var(--accent);
+      background: rgba(255,77,46,0.1);
+    }
+
+    .pattern-svg { width: 48px; height: 48px; }
+    .pattern-name {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.6rem;
+      color: var(--muted);
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .pattern-card.selected .pattern-name { color: var(--accent); }
+
+    /* DISTANCE MODE */
+    .distance-mode { display: none; }
+    .distance-mode.active { display: block; }
+    .pattern-mode { display: block; }
+    .pattern-mode.hidden { display: none; }
+
+    .slider-wrap { margin-bottom: 20px; }
+    .slider-label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .slider-key {
+      font-size: 0.8rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .slider-val {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.2rem;
+      color: var(--green);
+      letter-spacing: 1px;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      outline: none;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px;
+      height: 18px;
+      background: var(--accent);
+      border-radius: 50%;
+      cursor: pointer;
+      box-shadow: 0 0 8px rgba(255,77,46,0.4);
+    }
+
+    /* ELEVATION PILLS */
+    .elevation-pills {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .pill {
+      padding: 6px 16px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: var(--surface2);
+      color: var(--muted);
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .pill.selected {
+      background: rgba(61,255,160,0.1);
+      border-color: var(--green);
+      color: var(--green);
+    }
+
+    /* GENERATE BTN */
+    .generate-btn {
+      width: 100%;
+      padding: 16px;
+      background: var(--accent);
+      border: none;
+      border-radius: 10px;
+      color: white;
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.3rem;
+      letter-spacing: 3px;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .generate-btn::before {
+      content: '';
+      position: absolute;
+      top: 0; left: -100%;
+      width: 100%; height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.15), transparent);
+      transition: left 0.5s;
+    }
+    .generate-btn:hover::before { left: 100%; }
+    .generate-btn:hover { background: #e83e22; transform: translateY(-1px); box-shadow: 0 8px 24px rgba(255,77,46,0.3); }
+    .generate-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    /* ROUTE STATS */
+    .route-stats {
+      display: none;
+      gap: 12px;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+    }
+    .route-stats.visible { display: grid; grid-template-columns: repeat(3, 1fr); }
+
+    .stat-box {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      text-align: center;
+    }
+    .stat-num {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.4rem;
+      color: var(--accent);
+      display: block;
+    }
+    .stat-label {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.6rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* EXPORT ACTIONS */
+    .actions-bar {
+      display: none;
+      gap: 8px;
+      padding: 16px 24px;
+    }
+    .actions-bar.visible { display: flex; }
+
+    .action-btn {
+      flex: 1;
+      padding: 10px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 1px;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: center;
+      text-transform: uppercase;
+    }
+    .action-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* MAP AREA */
+    .map-area {
+      position: relative;
+      background: var(--bg);
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* MAP OVERLAYS */
+    .map-overlay {
+      position: absolute;
+      z-index: 500;
+    }
+
+    .map-hint {
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      pointer-events: none;
+      transition: opacity 0.4s;
+    }
+    .map-hint.hidden { opacity: 0; }
+
+    .hint-icon {
+      font-size: 4rem;
+      margin-bottom: 16px;
+      opacity: 0.3;
+    }
+    .hint-title {
+      font-family: 'Bebas Neue', sans-serif;
+      font-size: 1.8rem;
+      letter-spacing: 3px;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+    .hint-sub {
+      font-size: 0.85rem;
+      color: var(--border);
+    }
+
+    .loading-overlay {
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(10,10,15,0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(4px);
+    }
+    .loading-overlay.active { display: flex; }
+
+    .spinner-wrap { text-align: center; }
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-text {
+      font-family: 'DM Mono', monospace;
+      font-size: 0.75rem;
+      color: var(--muted);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    /* CORNER BADGE */
+    .corner-badge {
+      bottom: 20px;
+      right: 20px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 1px;
+    }
+    .corner-badge strong { color: var(--accent); }
+
+    /* TOAST */
+    .toast {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      z-index: 9999;
+      transition: transform 0.3s ease;
+      pointer-events: none;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .toast.success { border-color: var(--green); color: var(--green); }
+    .toast.error { border-color: var(--accent); color: var(--accent); }
+
+    /* LEAFLET DARK THEME */
+    .leaflet-tile-pane { filter: brightness(0.85) saturate(0.7); }
+    .leaflet-control-zoom a {
+      background: var(--surface2) !important;
+      color: var(--text) !important;
+      border-color: var(--border) !important;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Run<span>Shape</span></div>
+  <div class="header-badge">Route Planner v1.0</div>
+</header>
+
+<div class="app-layout">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+
+    <!-- LOCATION -->
+    <div class="sidebar-section">
+      <div class="section-label">01</div>
+      <div class="section-title">Location</div>
+      <div class="section-desc">Enter a city, neighbourhood, or landmark as your starting point.</div>
+      <div class="location-input-wrap">
+        <input type="text" class="location-input" id="locationInput" placeholder="e.g. Brisbane CBD, QLD" autocomplete="off" />
+        <button class="locate-btn" id="locateBtn" title="Use my location">📍</button>
+        <div class="autocomplete-list" id="autocompleteList"></div>
+      </div>
+    </div>
+
+    <!-- MODE -->
+    <div class="sidebar-section">
+      <div class="section-label">02</div>
+      <div class="section-title">Planning Mode</div>
+      <div class="mode-tabs">
+        <button class="mode-tab active" id="tabPattern" onclick="switchMode('pattern')">🔷 Pattern</button>
+        <button class="mode-tab" id="tabDistance" onclick="switchMode('distance')">📏 Distance</button>
+      </div>
+    </div>
+
+    <!-- PATTERN MODE -->
+    <div class="sidebar-section pattern-mode" id="patternSection">
+      <div class="section-label">03a</div>
+      <div class="section-title">Choose Pattern</div>
+      <div class="section-desc">Pick a shape. The route will approximate this pattern around your start point.</div>
+      <div class="pattern-grid" id="patternGrid">
+        <!-- Generated by JS -->
+      </div>
+    </div>
+
+    <!-- DISTANCE MODE -->
+    <div class="sidebar-section distance-mode" id="distanceSection">
+      <div class="section-label">03b</div>
+      <div class="section-title">Set Parameters</div>
+      <div class="section-desc">Set your target distance and preferred elevation profile.</div>
+
+      <div class="slider-wrap">
+        <div class="slider-label">
+          <span class="slider-key">Distance</span>
+          <span class="slider-val" id="distVal">5.0 km</span>
+        </div>
+        <input type="range" id="distSlider" min="1" max="42" step="0.5" value="5" oninput="updateDist(this.value)" />
+      </div>
+
+      <div class="slider-wrap">
+        <div class="slider-label">
+          <span class="slider-key">Scale</span>
+          <span class="slider-val" id="scaleVal">1.0×</span>
+        </div>
+        <input type="range" id="scaleSlider" min="0.5" max="3" step="0.1" value="1" oninput="updateScale(this.value)" />
+      </div>
+
+      <div style="margin-bottom: 14px">
+        <div class="section-label" style="margin-bottom: 10px">Elevation Profile</div>
+        <div class="elevation-pills" id="elevationPills">
+          <span class="pill selected" data-val="flat" onclick="selectElevation(this)">⬜ Flat</span>
+          <span class="pill" data-val="moderate" onclick="selectElevation(this)">📈 Moderate</span>
+          <span class="pill" data-val="hilly" onclick="selectElevation(this)">⛰️ Hilly</span>
+          <span class="pill" data-val="challenging" onclick="selectElevation(this)">🏔️ Challenging</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- GENERATE -->
+    <div class="sidebar-section">
+      <button class="generate-btn" id="generateBtn" onclick="generateRoute()">
+        Generate Route
+      </button>
+    </div>
+
+    <!-- STATS -->
+    <div class="route-stats" id="routeStats">
+      <div class="stat-box">
+        <span class="stat-num" id="statDist">—</span>
+        <span class="stat-label">Distance</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-num" id="statElev">—</span>
+        <span class="stat-label">Elevation</span>
+      </div>
+      <div class="stat-box">
+        <span class="stat-num" id="statTime">—</span>
+        <span class="stat-label">Est. Time</span>
+      </div>
+    </div>
+
+    <!-- ACTIONS -->
+    <div class="actions-bar" id="actionsBar">
+      <button class="action-btn" onclick="exportGPX()">⬇ GPX</button>
+      <button class="action-btn" onclick="copyLink()">🔗 Share</button>
+      <button class="action-btn" onclick="clearRoute()">✕ Clear</button>
+    </div>
+
+  </aside>
+
+  <!-- MAP -->
+  <div class="map-area">
+    <div id="map"></div>
+
+    <div class="map-overlay map-hint" id="mapHint">
+      <div class="hint-icon">🗺️</div>
+      <div class="hint-title">Your Route Appears Here</div>
+      <div class="hint-sub">Set a location, choose your mode, and generate</div>
+    </div>
+
+    <div class="map-overlay loading-overlay" id="loadingOverlay">
+      <div class="spinner-wrap">
+        <div class="spinner"></div>
+        <div class="loading-text" id="loadingText">Computing Route…</div>
+      </div>
+    </div>
+
+    <div class="map-overlay corner-badge">
+      Powered by <strong>OpenStreetMap</strong> + <strong>OSRM</strong>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+
+// ─── PATTERNS ──────────────────────────────────────────────────────────────
+const PATTERNS = [
+  {
+    id: 'loop', name: 'Loop', icon: `
+    <svg viewBox="0 0 48 48" fill="none" stroke="#ff4d2e" stroke-width="2.5" stroke-linecap="round">
+      <circle cx="24" cy="24" r="16"/>
+    </svg>`,
+    points: (cx, cy, scale) => {
+      const r = 0.008 * scale;
+      const pts = [];
+      for (let i = 0; i <= 36; i++) {
+        const a = (i / 36) * 2 * Math.PI - Math.PI/2;
+        pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a) * 0.7]);
+      }
+      return pts;
+    }
+  },
+  {
+    id: 'figure8', name: 'Figure 8', icon: `
+    <svg viewBox="0 0 48 48" fill="none" stroke="#ff4d2e" stroke-width="2.5" stroke-linecap="round">
+      <ellipse cx="24" cy="14" rx="10" ry="9"/>
+      <ellipse cx="24" cy="34" rx="10" ry="9"/>
+    </svg>`,
+    points: (cx, cy, scale) => {
+      const r = 0.006 * scale;
+      const pts = [];
+      for (let i = 0; i <= 72; i++) {
+        const t = (i / 72) * 4 * Math.PI;
+        pts.push([cx + r * Math.sin(t), cy + r * Math.sin(t) * Math.cos(t)]);
+      }
+      return pts;
+    }
+  },
+  {
+    id: 'star', name: 'Star', icon: `
+    <svg viewBox="0 0 48 48" fill="none" stroke="#ff4d2e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polygon points="24,4 29,18 44,18 32,27 37,42 24,33 11,42 16,27 4,18 19,18"/>
+    </svg>`,
+    points: (cx, cy, scale) => {
+      const outerR = 0.009 * scale, innerR = 0.004 * scale;
+      const pts = [];
+      for (let i = 0; i <= 10; i++) {
+        const r = i % 2 === 0 ? outerR : innerR;
+        const a = (i / 10) * 2 * Math.PI - Math.PI/2;
+        pts.push([cx + r * Math.cos(a), cy + r * Math.sin(a) * 0.7]);
+      }
+      pts.push(pts[0]);
+      return pts;
+    }
+  },
+  {
+    id: 'spiral', name: 'Spiral', icon: `
+    <svg viewBox="0 0 48 48" fill="none" stroke="#ff4d2e" stroke-width="2.5" stroke-linecap="round">
+      <path d="M24 24 C24 24 32 20 32 14 C32 8 18 6 14 12 C10 18 16 30 24 30 C36 30 42 16 36 10"/>
+    </svg>`,
+    points: (cx, cy, scale) => {
+      const pts = [];
+      const turns = 3;
+      for (let i = 0; i <= 60; i++) {
+        const t = (i / 60) * turns * 2 * Math.PI;
+        const r = (0.001 + 0.0025 * (i / 60)) * scale;
+        pts.push([cx + r * Math.cos(t), cy + r * Math.sin(t) * 0.7]);
+      }
+      return pts;
+    }
+  },
+  {
+    id: 'lollipop', name: 'Lollipop', icon: `
+    <svg viewBox="0 0 48 48" fill="none" stroke="#ff4d2e" stroke-width="2.5" stroke-linecap="round">
+      <line x1="24" y1="44" x2="24" y2="28"/>
+      <circle cx="24" cy="18" r="12"/>
+    </svg>`,
+    points: (cx, cy, scale) => {
+      const r = 0.006 * scale;
+      const stem = 0.012 * scale;
+      const pts = [[cx, cy - stem]];
+      for (let i = 0; i <= 36; i++) {
+        const a = (i / 36) * 2 * Math.PI - Math.PI/2;
+        pts.push([cx + r * Math.cos(a), cy - stem + r * Math.sin(a) * 0.7 - r]);
+      }
+      pts.push([cx, cy - stem]);
+      pts.push([cx, cy]);
+      return pts;
+    }
+  },
+  {
+    id: 'zigzag', name: 'Zigzag', icon: `
+    <svg viewBox="0 0 48 48" fill="none" stroke="#ff4d2e" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="4,36 14,12 24,36 34,12 44,36"/>
+    </svg>`,
+    points: (cx, cy, scale) => {
+      const w = 0.01 * scale, h = 0.008 * scale;
+      return [
+        [cx - 2*w, cy + h],
+        [cx - w, cy - h],
+        [cx, cy + h],
+        [cx + w, cy - h],
+        [cx + 2*w, cy + h],
+        [cx + w, cy - h],
+        [cx, cy + h],
+        [cx - w, cy - h],
+        [cx - 2*w, cy + h],
+      ];
+    }
+  }
+];
+
+// ─── STATE ─────────────────────────────────────────────────────────────────
+let state = {
+  mode: 'pattern',
+  selectedPattern: 'loop',
+  distance: 5,
+  scale: 1.0,
+  elevation: 'flat',
+  location: null,
+  routeLayer: null,
+  markerLayer: null,
+};
+
+// ─── MAP INIT ──────────────────────────────────────────────────────────────
+const map = L.map('map', { zoomControl: true }).setView([-27.47, 153.02], 13);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution: '© OpenStreetMap contributors',
+  maxZoom: 19
+}).addTo(map);
+
+// ─── PATTERN GRID ──────────────────────────────────────────────────────────
+function renderPatternGrid() {
+  const grid = document.getElementById('patternGrid');
+  grid.innerHTML = '';
+  PATTERNS.forEach(p => {
+    const card = document.createElement('div');
+    card.className = 'pattern-card' + (p.id === state.selectedPattern ? ' selected' : '');
+    card.innerHTML = `
+      <div class="pattern-svg">${p.icon}</div>
+      <div class="pattern-name">${p.name}</div>
+    `;
+    card.onclick = () => {
+      state.selectedPattern = p.id;
+      renderPatternGrid();
+    };
+    grid.appendChild(card);
+  });
+}
+renderPatternGrid();
+
+// ─── MODE SWITCH ───────────────────────────────────────────────────────────
+function switchMode(mode) {
+  state.mode = mode;
+  document.getElementById('tabPattern').classList.toggle('active', mode === 'pattern');
+  document.getElementById('tabDistance').classList.toggle('active', mode === 'distance');
+  document.getElementById('patternSection').classList.toggle('hidden', mode !== 'pattern');
+  document.getElementById('distanceSection').classList.toggle('active', mode === 'distance');
+}
+
+// ─── SLIDERS ───────────────────────────────────────────────────────────────
+function updateDist(v) {
+  state.distance = parseFloat(v);
+  document.getElementById('distVal').textContent = `${parseFloat(v).toFixed(1)} km`;
+}
+function updateScale(v) {
+  state.scale = parseFloat(v);
+  document.getElementById('scaleVal').textContent = `${parseFloat(v).toFixed(1)}×`;
+}
+function selectElevation(el) {
+  document.querySelectorAll('.pill').forEach(p => p.classList.remove('selected'));
+  el.classList.add('selected');
+  state.elevation = el.dataset.val;
+}
+
+// ─── GEOCODING ─────────────────────────────────────────────────────────────
+let debounceTimer;
+const locationInput = document.getElementById('locationInput');
+const autocompleteList = document.getElementById('autocompleteList');
+
+locationInput.addEventListener('input', () => {
+  clearTimeout(debounceTimer);
+  debounceTimer = setTimeout(async () => {
+    const q = locationInput.value.trim();
+    if (q.length < 3) { autocompleteList.classList.remove('visible'); return; }
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(q)}`);
+      const results = await res.json();
+      renderAutocomplete(results);
+    } catch(e) {}
+  }, 350);
+});
+
+function renderAutocomplete(results) {
+  if (!results.length) { autocompleteList.classList.remove('visible'); return; }
+  autocompleteList.innerHTML = '';
+  results.forEach(r => {
+    const item = document.createElement('div');
+    item.className = 'autocomplete-item';
+    item.textContent = r.display_name;
+    item.onclick = () => {
+      locationInput.value = r.display_name;
+      state.location = { lat: parseFloat(r.lat), lon: parseFloat(r.lon), name: r.display_name };
+      autocompleteList.classList.remove('visible');
+      map.setView([state.location.lat, state.location.lon], 14);
+      placeMarker(state.location.lat, state.location.lon);
+    };
+    autocompleteList.appendChild(item);
+  });
+  autocompleteList.classList.add('visible');
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.location-input-wrap')) autocompleteList.classList.remove('visible');
+});
+
+// GPS LOCATE
+document.getElementById('locateBtn').onclick = () => {
+  if (!navigator.geolocation) { showToast('Geolocation not supported', 'error'); return; }
+  navigator.geolocation.getCurrentPosition(pos => {
+    const { latitude: lat, longitude: lon } = pos.coords;
+    state.location = { lat, lon, name: 'Current Location' };
+    locationInput.value = 'Current Location';
+    map.setView([lat, lon], 14);
+    placeMarker(lat, lon);
+    showToast('📍 Location set!', 'success');
+  }, () => showToast('Could not get location', 'error'));
+};
+
+function placeMarker(lat, lon) {
+  if (state.markerLayer) map.removeLayer(state.markerLayer);
+  const icon = L.divIcon({
+    className: '',
+    html: `<div style="width:14px;height:14px;background:#ff4d2e;border:2px solid white;border-radius:50%;box-shadow:0 0 10px rgba(255,77,46,0.6)"></div>`,
+    iconAnchor: [7,7]
+  });
+  state.markerLayer = L.marker([lat, lon], { icon }).addTo(map);
+}
+
+// ─── ROUTE GENERATION ──────────────────────────────────────────────────────
+async function generateRoute() {
+  if (!state.location) {
+    showToast('Please set a location first', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('generateBtn');
+  btn.disabled = true;
+  document.getElementById('loadingOverlay').classList.add('active');
+  document.getElementById('mapHint').classList.add('hidden');
+  setLoadingText('Computing waypoints…');
+
+  try {
+    const { lat, lon } = state.location;
+
+    let waypoints;
+    if (state.mode === 'pattern') {
+      waypoints = generatePatternWaypoints(lat, lon);
+    } else {
+      waypoints = generateDistanceWaypoints(lat, lon);
+    }
+
+    setLoadingText('Snapping to roads…');
+    const routeCoords = await snapToRoads(waypoints);
+
+    setLoadingText('Rendering route…');
+    drawRoute(routeCoords);
+
+    const distKm = calculateDistance(routeCoords);
+    const elevGain = estimateElevation(distKm, state.elevation);
+    const timeMin = Math.round(distKm * 6.5);
+
+    document.getElementById('statDist').textContent = `${distKm.toFixed(1)}km`;
+    document.getElementById('statElev').textContent = `${elevGain}m`;
+    document.getElementById('statTime').textContent = `${timeMin}min`;
+    document.getElementById('routeStats').classList.add('visible');
+    document.getElementById('actionsBar').classList.add('visible');
+
+    showToast('✓ Route generated!', 'success');
+  } catch (err) {
+    console.error(err);
+    showToast('Route generation failed. Try another location.', 'error');
+  }
+
+  btn.disabled = false;
+  document.getElementById('loadingOverlay').classList.remove('active');
+}
+
+function generatePatternWaypoints(lat, lon) {
+  const pattern = PATTERNS.find(p => p.id === state.selectedPattern);
+  return pattern.points(lat, lon, state.scale);
+}
+
+function generateDistanceWaypoints(lat, lon) {
+  // Generate circular route approximating target distance
+  const circumference = state.distance;
+  const r = (circumference / (2 * Math.PI)) / 111; // degrees
+  const pts = [];
+  const numPts = 12;
+  for (let i = 0; i <= numPts; i++) {
+    const a = (i / numPts) * 2 * Math.PI - Math.PI/2;
+    pts.push([lat + r * state.scale * Math.cos(a), lon + r * state.scale * Math.sin(a) / Math.cos(lat * Math.PI/180)]);
+  }
+  return pts;
+}
+
+async function snapToRoads(waypoints) {
+  // Use OSRM public API to snap waypoints to real roads
+  const coords = waypoints.map(([lat, lon]) => `${lon},${lat}`).join(';');
+  const url = `https://router.project-osrm.org/route/v1/foot/${coords}?overview=full&geometries=geojson&steps=false`;
+
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('OSRM request failed');
+  const data = await res.json();
+
+  if (!data.routes || !data.routes[0]) throw new Error('No route found');
+
+  return data.routes[0].geometry.coordinates.map(([lon, lat]) => [lat, lon]);
+}
+
+function drawRoute(coords) {
+  if (state.routeLayer) map.removeLayer(state.routeLayer);
+
+  // Shadow line
+  const shadow = L.polyline(coords, {
+    color: '#ff4d2e',
+    weight: 10,
+    opacity: 0.15,
+    lineCap: 'round',
+    lineJoin: 'round'
+  }).addTo(map);
+
+  // Main line
+  state.routeLayer = L.featureGroup([
+    shadow,
+    L.polyline(coords, {
+      color: '#ff4d2e',
+      weight: 4,
+      opacity: 0.9,
+      lineCap: 'round',
+      lineJoin: 'round',
+      dashArray: null
+    })
+  ]).addTo(map);
+
+  // Start/end markers
+  const dotIcon = (color) => L.divIcon({
+    className: '',
+    html: `<div style="width:10px;height:10px;background:${color};border:2px solid white;border-radius:50%"></div>`,
+    iconAnchor: [5,5]
+  });
+  L.marker(coords[0], { icon: dotIcon('#3dffa0') }).addTo(map);
+  L.marker(coords[coords.length-1], { icon: dotIcon('#ff4d2e') }).addTo(map);
+
+  map.fitBounds(state.routeLayer.getBounds(), { padding: [40,40] });
+}
+
+function calculateDistance(coords) {
+  let d = 0;
+  for (let i = 1; i < coords.length; i++) {
+    d += haversine(coords[i-1], coords[i]);
+  }
+  return d;
+}
+
+function haversine([lat1,lon1], [lat2,lon2]) {
+  const R = 6371;
+  const dLat = (lat2-lat1)*Math.PI/180;
+  const dLon = (lon2-lon1)*Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function estimateElevation(km, profile) {
+  const gains = { flat: 8, moderate: 25, hilly: 50, challenging: 90 };
+  return Math.round(km * (gains[profile] || 8));
+}
+
+// ─── EXPORT / SHARE ────────────────────────────────────────────────────────
+function exportGPX() {
+  if (!state.routeLayer) return;
+  const layers = state.routeLayer.getLayers ? state.routeLayer.getLayers() : [];
+  let coords = [];
+  layers.forEach(l => { if (l.getLatLngs) coords = l.getLatLngs(); });
+
+  if (!coords.length) return;
+
+  const trkpts = coords.map(ll => `    <trkpt lat="${ll.lat.toFixed(6)}" lon="${ll.lng.toFixed(6)}"></trkpt>`).join('\n');
+  const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="RunShape">
+  <trk><name>RunShape Route</name><trkseg>
+${trkpts}
+  </trkseg></trk>
+</gpx>`;
+
+  const blob = new Blob([gpx], { type: 'application/gpx+xml' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'runshape-route.gpx';
+  a.click();
+  showToast('GPX downloaded!', 'success');
+}
+
+function copyLink() {
+  const url = `${window.location.href}?loc=${encodeURIComponent(locationInput.value)}&mode=${state.mode}&pattern=${state.selectedPattern}`;
+  navigator.clipboard.writeText(url).then(() => showToast('Link copied!', 'success'));
+}
+
+function clearRoute() {
+  if (state.routeLayer) map.removeLayer(state.routeLayer);
+  state.routeLayer = null;
+  document.getElementById('routeStats').classList.remove('visible');
+  document.getElementById('actionsBar').classList.remove('visible');
+  document.getElementById('mapHint').classList.remove('hidden');
+}
+
+// ─── UI HELPERS ────────────────────────────────────────────────────────────
+function setLoadingText(t) { document.getElementById('loadingText').textContent = t; }
+
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+</script>
+</body>
+</html>
