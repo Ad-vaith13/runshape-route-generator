@@ -215,6 +215,3 @@ Pull requests are welcome. For major changes, open an issue first.
 
 ---
 
-## 📄 License
-
-MIT © 2025 — RunShape contributors
